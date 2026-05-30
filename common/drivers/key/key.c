@@ -10,7 +10,7 @@ void KEY_Init(void)
 
     // 配置GPIO
     GPIO_InitTypeDef GPIO_InitStructure;
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_5;      // 假设按键连接在PB6和PB5
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13;      // KEY0=PB12, KEY1=PB13
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;               // 下拉输入
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;           // 速度50MHz
     GPIO_Init(GPIOB, &GPIO_InitStructure);                      // 初始化GPIOB    
@@ -18,22 +18,22 @@ void KEY_Init(void)
 
 uint8_t KEY0_Scan(void)
 {
-    if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_6) == 1)           // 按键按下
+    if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_12) == 1)
     {
         vTaskDelay(10);
-        while(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_6) == 1);   // 等待按键释放
-        return 1;                                               // 返回按键按下标志
+        while(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_12) == 1);
+        return 1;
     }
-    return 0;                                                   // 无按键按下
+    return 0;
 }
 
 uint8_t KEY1_Scan(void)
 {
-    if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_5) == 1)           // 按键按下
+    if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_13) == 1)
     {
         vTaskDelay(10);
-        while(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_5) == 1);   // 等待按键释放
-        return 1;                                               // 返回按键按下标志
+        while(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_13) == 1);
+        return 1;
     }
-    return 0;                                                   // 无按键按下
+    return 0;
 }
