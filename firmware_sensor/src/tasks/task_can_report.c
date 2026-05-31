@@ -28,25 +28,23 @@ void Task_CAN_Report(void *pvParameters)
 
     while (1)
     {
-        /* 阻塞等待传感器数据 */
-        if (xQueueReceive(xQueueSensorData, &sensor_data, portMAX_DELAY) == pdTRUE)
+        /* 带超时等待传感器数据 (1s), 保证心跳即使在无数据时也能发送 */
+        if (xQueueReceive(xQueueSensorData, &sensor_data, pdMS_TO_TICKS(1000)) == pdTRUE)
         {
             if (sensor_data.soil_moisture == 0xFF)
             {
-                /* 告警帧 */
                 can_build_alert(&tx_frame, DEV_STATUS_DHT11_ERR);
                 CAN_SendFrame(&tx_frame);
                 LED2_Turn();
             }
             else
             {
-                /* 正常数据帧 */
                 can_build_data_report(&tx_frame, &sensor_data);
                 CAN_SendFrame(&tx_frame);
             }
         }
 
-        /* 心跳 (5秒) */
+        /* 心跳 (5秒) — 不论是否有数据，都会执行 */
         if ((xTaskGetTickCount() - xLastHeartbeat) >= pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS))
         {
             xLastHeartbeat = xTaskGetTickCount();

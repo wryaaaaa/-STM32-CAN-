@@ -26,7 +26,7 @@ static QueueHandle_t s_CAN_RxQueue = NULL;
 /**
  * @brief  CAN1 RX0 中断处理 (FIFO0 接收到新帧)
  */
-void CAN1_RX0_IRQHandler(void)
+void USB_LP_CAN1_RX0_IRQHandler(void)
 {
     CAN_Frame_t frame;
     CanRxMsg rx_msg;

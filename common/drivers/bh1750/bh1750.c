@@ -5,6 +5,8 @@
  */
 
 #include "bh1750.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 /* I2C 超时 */
 #define I2C_TIMEOUT  0xFFFFFUL
@@ -22,6 +24,7 @@ static uint8_t I2C_WaitEvent(I2C_TypeDef *I2Cx, uint32_t event)
     while (!I2C_CheckEvent(I2Cx, event))
     {
         if (--timeout == 0) return 1;
+        taskYIELD();   /* 避免忙等锁死低优先级任务 */
     }
     return 0;
 }
@@ -95,8 +98,11 @@ void BH1750_Init(uint8_t addr)
     /* 4. BH1750 上电 */
     I2C_WriteByte(I2C1, addr, BH1750_POWER_ON);
 
-    /* 5. 设置连续高分辨率模式 */
+    /* 5. 设置连续高分辨率模式 (测量时间 120ms) */
     I2C_WriteByte(I2C1, addr, BH1750_CONT_HRES_MODE);
+
+    /* 6. 等待第一次测量完成 (180ms, 留余量确保数据有效) */
+    vTaskDelay(pdMS_TO_TICKS(180));
 }
 
 uint16_t BH1750_ReadLight(uint8_t addr)
@@ -106,7 +112,7 @@ uint16_t BH1750_ReadLight(uint8_t addr)
     if (I2C_ReadBytes(I2C1, addr, buf, 2) != 0)
         return 0;
 
-    /* BH1750 返回 16-bit 原始值, lux = raw / 1.2 */
+    /* BH1750 返回 16-bit 原始值, lux = raw / 1.2 = raw * 10 / 12 (整数运算) */
     uint16_t raw = ((uint16_t)buf[0] << 8) | buf[1];
-    return (uint16_t)((float)raw / 1.2f);
+    return (uint16_t)((raw * 10UL) / 12UL);
 }

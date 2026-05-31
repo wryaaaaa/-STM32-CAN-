@@ -12,7 +12,6 @@
 void SoilMoisture_Init(void)
 {
     GPIO_InitTypeDef  gpio;
-    ADC_InitTypeDef   adc;
 
     /* 1. 时钟 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_ADC1, ENABLE);

@@ -59,7 +59,7 @@
    0 = 禁用
    1 = 方法1 - 仅检测任务栈溢出
    2 = 方法2 - 检测任务和中断栈溢出 */
-#define configCHECK_FOR_STACK_OVERFLOW	            0
+#define configCHECK_FOR_STACK_OVERFLOW	            2
 
 /* 运行时统计配置: 关闭以减小代码体积 */
 #define configGENERATE_RUN_TIME_STATS             	0

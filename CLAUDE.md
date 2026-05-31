@@ -85,8 +85,11 @@ NVIC Priority Group 4 (all 4 bits are preemption priority, no sub-priority):
 - FreeRTOS management range: priorities 5–15 (via `configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY = 5`)
 - System exceptions (PendSV, SysTick, SVC): handled by FreeRTOS kernel
 - USART1_IRQn: preemption priority 7
-- USART2_IRQn: preemption priority 8 (lower than USART1)
+- USART1_IRQn: preemption priority 7
+- CAN1_RX0 (USB_LP_CAN1_RX0_IRQn): preemption priority 6
+- **Important:** STM32F103C8 medium-density 启动文件使用的符号名是 `USB_LP_CAN1_RX0_IRQHandler`（CAN1 RX0 与 USB 共享中断线），不是 `CAN1_RX0_IRQHandler`
 - Fault handlers (HardFault, MemManage, BusFault, UsageFault) all trap in infinite loops
+- Stack overflow detection: `configCHECK_FOR_STACK_OVERFLOW = 2` (enabled)
 
 ### Key Design Patterns
 
