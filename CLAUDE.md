@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-基于STM32与LoRa的智能农业大棚监测系统 — STM32F103C8 网关节点。通过 LoRa 无线接收远程传感器节点（DHT11温湿度）的数据，在 OLED 上显示，并通过 ESP8266 WiFi 模块上传至云端。
+基于CAN总线+FreeRTOS的多节点农业大棚监测系统。两个STM32F103C8节点通过CAN总线通信：传感器采集节点（DHT11+土壤湿度+BH1750光照）采集环境数据，网关节点接收后通过OLED显示、ESP8266 WiFi上传至手机。
 
 - **MCU:** STM32F103C8 (Cortex-M3, 64KB Flash @ 0x08000000, 20KB RAM @ 0x20000000, 72MHz)
 - **RTOS:** FreeRTOS v202212.01 (preemptive, 5 priority levels, 17KB heap, 1ms tick)
@@ -16,83 +16,98 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 # Open in Keil uVision and rebuild:
-project.uvprojx   # Menu: Project → Rebuild all target files
+firmware_sensor/project.uvprojx    # Menu: Project → Rebuild all target files
+firmware_gateway/project.uvprojx   # Menu: Project → Rebuild all target files
 
 # Or use UV4.exe command line:
-UV4.exe -b project.uvprojx -t "Target 1" -j0 -o build.log
+UV4.exe -b firmware_sensor/project.uvprojx -t "Target 1" -j0 -o build.log
+UV4.exe -b firmware_gateway/project.uvprojx -t "Target 1" -j0 -o build.log
 
 # Clean build artifacts:
 .\keilkill.bat
 ```
 
-Preprocessor define: `USE_STDPERIPH_DRIVER`. Include paths are in the project file at the `Cads → VariousControls → IncludePath` element. IntelliSense config in `.vscode/c_cpp_properties.json` points to a MinGW GCC (not the actual Keil compiler — expect false positives from VS Code static analysis).
+Preprocessor define: `USE_STDPERIPH_DRIVER`. Include paths are in each project file at `Cads → VariousControls → IncludePath`.
 
 ## High-Level Architecture
 
+### Pin Allocation
+
+| Pin | Function | Sensor Node | Gateway Node |
+|-----|----------|:-----------:|:------------:|
+| PA0 | ADC1_CH0 | Soil Moisture | — |
+| PA9 | USART1_TX | — | ESP8266 RXD |
+| PA10 | USART1_RX | — | ESP8266 TXD |
+| PB3 | GPIO | LED1 | LED1 |
+| PB4 | GPIO | LED2 | LED2 |
+| PB5 | GPIO | DHT11 DATA | — |
+| PB6 | I2C1_SCL | BH1750 SCL (HW I2C) | OLED SCL (bit-bang) |
+| PB7 | I2C1_SDA | BH1750 SDA (HW I2C) | OLED SDA (bit-bang) |
+| PB8 | **CAN1_RX** (default) | TJA1050 RXD | TJA1050 RXD |
+| PB9 | **CAN1_TX** (default) | TJA1050 TXD | TJA1050 TXD |
+| PB12 | GPIO | KEY0 (reserved) | KEY0 (reserved) |
+| PB13 | GPIO | KEY1 (reserved) | KEY1 (reserved) |
+
 ### Task Model (FreeRTOS)
 
-The application runs 3 persistent tasks under a mutex-protected shared data model:
+**Sensor Node — 3 tasks:**
 
-| Task | Priority | Stack | Role |
-|------|----------|-------|------|
-| `Task_LoRa_Rx` | 4 (highest) | 256 words | Polls `Lora_Data_Ready` flag → parses `{T:xx.x,H:yy.y}` from USART2 buffer → updates `g_SystemData` under mutex |
-| `Task_ESP_Upload` | 3 | 512 words | Initializes ESP8266 as WiFi AP+TCP server → polls `data_updated` flag → formats `"T:%.1f,H:%.1f"` → sends via `AT+CIPSEND` |
-| `Task_OLED_Display` | 2 (lowest) | 256 words | Reads `g_SystemData` every 100ms under mutex → refreshes 3-line OLED display |
+| Task | Priority | Stack | Cycle | Role |
+|------|:--------:|-------|-------|------|
+| `Task_Sensor_Acq` | 4 | 256 | 1s | Read DHT11 + Soil ADC + BH1750 → push to queue |
+| `Task_CAN_Report` | 3 | 256 | event/1s | xQueueReceive → build CAN frame → send + heartbeat every 5s |
+| `Task_CAN_CmdHandler` | 2 | 256 | event | Handle query frames from gateway → immediate read + reply |
 
-A `Start_Task` (priority 1) creates all three tasks inside a critical section, then deletes itself.
+**Gateway Node — 4 tasks:**
 
-### Shared Data (Critical Section)
+| Task | Priority | Stack | Cycle | Role |
+|------|:--------:|-------|-------|------|
+| `Task_CAN_Recv` | 4 | 256 | event | CAN ISR → xQueueCANRx → parse → update GatewayData + push upload queue |
+| `Task_ESP_Upload` | 3 | 512 | event | Init ESP8266 AP+TCP server → JSON serialize → AT+CIPSEND |
+| `Task_OLED_Display` | 2 | 256 | 100ms | Read GatewayData under mutex → 4-line OLED (T/H/Soil/Lux) |
+| `Task_CAN_Poll` | 2 | 256 | 3s | Query sensor if offline |
 
-```c
-typedef struct {
-    float temperature;
-    float humidity;
-    uint8_t data_updated;   // Set by LoRa task, consumed/cleared by ESP task
-    uint8_t net_connected;  // Set by ESP task when TCP init succeeds, read by OLED task
-} System_Data_t;
-```
+### CAN Protocol
 
-Access to `g_SystemData` is guarded by `xSystemMutex` (mutex semaphore). The `data_updated` flag serves as a producer-consumer handshake between LoRa reception and ESP upload.
+- **Physical:** PB8=CAN_RX, PB9=CAN_TX, TJA1050, 500kbps, 120Ω terminators
+- **Frame:** 29-bit extended ID, 8-byte DLC
+- **Data layout:** `[0-1]=temp×10 [2-3]=humi×10 [4]=soil% [5-6]=lux [7]=reserved`
+- **ID:** `[priority:3][msg_type:10][src:8][dst:8]`
+- **Priority levels:** 0=alert, 1=command, 2=data, 3=heartbeat
+- **ISR name:** MUST use `USB_LP_CAN1_RX0_IRQHandler` (STM32F103C8 medium-density vector name, shared with USB LP line)
 
-### Interrupt-Driven Data Reception
+### Interrupt Priority Configuration
 
-USART2 (LoRa, PA2-TX/PA3-RX, 9600 baud, APB1 bus) uses an RX interrupt (`USART2_IRQHandler` in [External_function/USART.c](External_function/USART.c)):
-1. Bytes accumulate in `USART2_RxBuffer[]` until `'}'` is received
-2. When `'}'` arrives, sets `Lora_Data_Ready = 1` and stops accepting new bytes
-3. `Task_LoRa_Rx` polls this flag, parses the frame, then calls `Lora_ClearRxBuffer()` which resets the flag and re-enables RX interrupts
-4. If buffer overflows before `'}'` appears, the buffer is forcefully cleared
-
-This flag-based handshake prevents the ISR from overwriting data that hasn't been processed yet.
-
-USART1 (ESP8266/Debug, PA9-TX/PA10-RX, 115200 baud, APB2 bus) uses a simpler ISR that just accumulates bytes with overflow protection — the ESP task polls the buffer via `strstr()` for AT command responses and connection state strings (`"CLOSED"`, `"CONNECT"`, `"ERROR"`, `"SEND OK"`).
+NVIC Priority Group 4 (4-bit preemption, no sub-priority):
+- FreeRTOS management range: 5–15 (`configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY = 5`)
+- CAN1_RX0: preemption priority 6 (`USB_LP_CAN1_RX0_IRQn`)
+- USART1: preemption priority 7
+- Stack overflow detection: `configCHECK_FOR_STACK_OVERFLOW = 2` (enabled, hook in stm32f10x_it.c)
 
 ### Directory Map
 
 | Directory | Purpose |
 |-----------|---------|
-| `user/` | Application entry (`main.c`), FreeRTOS task definitions, ISR stubs, peripheral config header |
-| `External_function/` | Device drivers: LoRa (E32 module via USART2), ESP8266 (AT commands via USART1), OLED (I2C SSD1306), DHT11, USART (generic tx/rx/printf for any USARTx), LED, KEY, Delay |
-| `library_function/` | STM32F10x Standard Peripheral Library (GPIO, USART, SPI, I2C, TIM, ADC, DMA, RCC, NVIC, CAN, etc.) — read-only vendor code |
-| `FreeRTOS/` | FreeRTOS kernel sources: `inc/` (headers), `src/` (tasks, queue, timers, event_groups, croutine, list), `port/` (ARM Cortex-M3 port + heap_4.c), `FreeRTOSConfig.h` at root |
-| `start/` | Startup asm (`startup_stm32f10x_md.s` for medium-density), `system_stm32f10x.c` (SystemInit/clock tree), CMSIS core (`core_cm3.c/.h`), master header `stm32f10x.h` |
-| `system/` | MCU peripheral init wrappers (ADC, BKP, DMA, Flash, NVIC, RTC, Tim, WDG) — thin initialization helpers |
-| `Objects/` | Build output: `.o`, `.d`, `.axf`, `.hex` |
-| `Listings/` | Linker map, disassembly listing |
-
-### Interrupt Priority Configuration
-
-NVIC Priority Group 4 (all 4 bits are preemption priority, no sub-priority):
-- FreeRTOS management range: priorities 5–15 (via `configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY = 5`)
-- System exceptions (PendSV, SysTick, SVC): handled by FreeRTOS kernel
-- USART1_IRQn: preemption priority 7
-- USART1_IRQn: preemption priority 7
-- CAN1_RX0 (USB_LP_CAN1_RX0_IRQn): preemption priority 6
-- **Important:** STM32F103C8 medium-density 启动文件使用的符号名是 `USB_LP_CAN1_RX0_IRQHandler`（CAN1 RX0 与 USB 共享中断线），不是 `CAN1_RX0_IRQHandler`
-- Fault handlers (HardFault, MemManage, BusFault, UsageFault) all trap in infinite loops
-- Stack overflow detection: `configCHECK_FOR_STACK_OVERFLOW = 2` (enabled)
+| `firmware_sensor/` | Sensor node Keil project + app code |
+| `firmware_gateway/` | Gateway Keil project + app code |
+| `common/cmsis/` | ARM Cortex-M3 CMSIS + startup (`startup_stm32f10x_md.s`) |
+| `common/std_periph_lib/` | STM32F10x Standard Peripheral Library v3.5.0 — read-only |
+| `common/freertos/` | FreeRTOS kernel: `inc/`, `src/`, `port/` (heap_4.c) |
+| `common/drivers/can/` | CAN driver (PB8/PB9, TJA1050, 500kbps) |
+| `common/drivers/usart/` | USART1 driver (PA9/PA10, 115200) |
+| `common/drivers/dht11/` | DHT11 one-wire driver (PB5) |
+| `common/drivers/soil_moisture/` | Soil moisture ADC driver (PA0, ADC1_CH0) |
+| `common/drivers/bh1750/` | BH1750 I2C driver (PB6/PB7, HW I2C1) |
+| `common/drivers/oled/` | OLED SSD1306 bit-bang I2C (PB6/PB7) |
+| `common/drivers/esp8266/` | ESP8266 AT command driver |
+| `common/drivers/led/key/delay/` | Utility drivers |
+| `common/utils/protocol/` | CAN protocol encoder/decoder + JSON builder |
+| `docs/` | Architecture docs, hardware wiring, Mermaid diagrams |
 
 ### Key Design Patterns
 
-- **Producer-consumer flag with mutex:** LoRa ISR → flag → task parses → mutex-guarded struct update → ESP task consumes under same mutex. This avoids queue overhead for simple sensor data.
-- **AT command polling with timeout:** ESP8266 driver sends AT command, then busy-waits with `vTaskDelay(10ms)` increments checking for acknowledgment strings in the shared USART1 receive buffer.
-- **Critical section at task creation:** `Start_Task` wraps `xTaskCreate` calls in `taskENTER_CRITICAL()/taskEXIT_CRITICAL()` to prevent any task from running before all tasks are created (prevents initialization races).
+- **Message queue for task decoupling:** CAN ISR → `xQueueSendToBackFromISR` → task receives via `xQueueReceive`. No flag-based handshake.
+- **Mutex-guarded shared data:** `GatewayData_t` accessed by 3 tasks under `xGatewayMutex`.
+- **Queue overwrite for latest data:** `xQueueOverwrite` for sensor data (only latest value matters).
+- **AT command with busy flag:** `usart1_busy` prevents USART1 ISR from clearing buffer while `ESP_SendCmd` is polling.
+- **Critical section at task creation:** `Start_Task` wraps `xTaskCreate` calls in `taskENTER_CRITICAL()` to prevent init races.

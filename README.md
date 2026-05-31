@@ -5,16 +5,17 @@
 ## 系统架构
 
 ```
-┌─────────────────────┐        CAN Bus (500kbps)        ┌─────────────────────┐
-│   传感器采集节点      │ ◄═══════════════════════════► │     网关节点         │
-│   (Sensor Node)     │         双绞线 ≤30m             │   (Gateway Node)    │
-│                     │                                 │                     │
-│  · STM32F103C8      │                                 │  · STM32F103C8      │
-│  · TJA1050 CAN收发器│                                 │  · TJA1050 CAN收发器 │
-│  · DHT11 温湿度传感器│                                 │  · ESP8266 WiFi模块  │
-│  · LED 状态指示     │                                 │  · OLED SSD1306 显示 │
-└─────────────────────┘                                 │  · LED 状态指示     │
-                                                        └──────────┬──────────┘
+┌───────────────────────────┐      CAN Bus (500kbps)      ┌───────────────────────────┐
+│     传感器采集节点          │ ◄═══════════════════════► │        网关节点            │
+│     (Sensor Node)         │       双绞线 ≤30m           │     (Gateway Node)        │
+│                           │                            │                           │
+│  · STM32F103C8            │                            │  · STM32F103C8            │
+│  · TJA1050 CAN 收发器     │                            │  · TJA1050 CAN 收发器     │
+│  · DHT11 温湿度传感器     │                            │  · ESP8266 WiFi 模块      │
+│  · 土壤湿度传感器 (ADC)    │                            │  · OLED SSD1306 显示      │
+│  · BH1750 光照传感器(I2C) │                            │  · LED ×2 状态指示        │
+│  · LED ×2 状态指示        │                            │                           │
+└───────────────────────────┘                            └───────────┬───────────────┘
                                                                    │ TCP (WiFi)
                                                                    ▼
                                                             ┌──────────────┐
@@ -27,77 +28,85 @@
 
 ```
 ├── README.md
-├── docs/                       # 设计文档
-│   ├── architecture.md         # 系统架构
-│   ├── can-protocol.md         # CAN协议定义
-│   └── development-guide.md    # 开发环境搭建
-├── hardware/                   # 硬件设计
+├── CLAUDE.md
+├── LICENSE
+├── .gitignore
+├── docs/
+│   ├── design/architecture.md      # 系统架构设计
+│   ├── hardware-wiring.md          # 硬件接线图 (完整GPIO标注)
+│   └── diagrams/                   # Mermaid架构图 + PNG渲染
+├── hardware/                       # 硬件设计文件 (预留)
 │   ├── schematic/
 │   ├── pcb/
 │   └── bom/
-├── common/                     # 共享代码
-│   ├── cmsis/                  # ARM Cortex-M3 支持
-│   ├── std_periph_lib/         # STM32F10x 标准外设库
-│   ├── freertos/               # FreeRTOS v202212.01
-│   ├── drivers/                # 外设驱动
-│   │   ├── can/                # CAN总线驱动
-│   │   ├── usart/              # 串口驱动
-│   │   ├── dht11/              # DHT11传感器
-│   │   ├── oled/               # OLED SSD1306
-│   │   ├── esp8266/            # ESP8266 WiFi
-│   │   ├── led/                # LED控制
-│   │   ├── key/                # 按键扫描
-│   │   └── delay/              # 延时函数
-│   └── utils/                  # 工具库
-│       ├── ring_buffer/        # 环形缓冲区
-│       └── protocol/           # CAN协议 & JSON工具
-├── firmware_sensor/            # 传感器采集节点工程
-│   ├── project.uvprojx         # Keil MDK 工程
+├── common/                         # 两个设备共享的代码
+│   ├── cmsis/                      # ARM Cortex-M3 CMSIS
+│   ├── std_periph_lib/             # STM32F10x 标准外设库
+│   ├── freertos/                   # FreeRTOS v202212.01
+│   ├── drivers/                    # 外设驱动
+│   │   ├── can/                    # CAN总线 (PB8/PB9)
+│   │   ├── usart/                  # USART1 (PA9/PA10)
+│   │   ├── dht11/                  # DHT11 温湿度 (PB5)
+│   │   ├── soil_moisture/          # 土壤湿度 ADC (PA0)
+│   │   ├── bh1750/                 # 光照传感器 I2C (PB6/PB7)
+│   │   ├── oled/                   # OLED SSD1306 (PB6/PB7)
+│   │   ├── esp8266/                # ESP8266 WiFi
+│   │   ├── led/                    # LED 控制 (PB3/PB4)
+│   │   ├── key/                    # 按键扫描 (PB12/PB13)
+│   │   └── delay/                  # 延时函数
+│   └── utils/
+│       ├── ring_buffer/            # 环形缓冲区
+│       └── protocol/               # CAN协议 + JSON 工具
+├── firmware_sensor/                # 传感器采集节点 Keil 工程
+│   ├── project.uvprojx
 │   ├── src/
 │   │   ├── main.c
 │   │   ├── stm32f10x_it.c
 │   │   └── tasks/
+│   │       ├── task_sensor_acq.c   # 传感器采集 (4路)
+│   │       └── task_can_report.c   # CAN上报 + 指令处理
 │   └── inc/
 │       └── app_config.h
-├── firmware_gateway/           # 网关节点工程
-│   ├── project.uvprojx         # Keil MDK 工程
+├── firmware_gateway/               # 网关节点 Keil 工程
+│   ├── project.uvprojx
 │   ├── src/
 │   │   ├── main.c
 │   │   ├── stm32f10x_it.c
 │   │   └── tasks/
+│   │       ├── task_can_recv.c     # CAN 接收
+│   │       ├── task_esp_upload.c   # ESP8266 TCP 上传
+│   │       ├── task_oled_disp.c    # OLED 显示
+│   │       └── task_can_poll.c     # CAN 主动轮询
 │   └── inc/
 │       └── app_config.h
-└── tools/                      # 调试工具
-    └── can_monitor/
+└── tools/                          # 辅助工具
+    ├── can_monitor/
+    ├── render_mermaid_pw.py        # Mermaid → PNG 渲染
+    └── render_mermaid.py
 ```
 
 ## 快速开始
 
 ### 硬件要求
 
-| 组件 | 传感器节点 | 网关节点 |
-|------|:---------:|:--------:|
-| STM32F103C8T6 最小系统板 | ✓ | ✓ |
-| TJA1050 CAN 收发器模块 | ✓ | ✓ |
-| DHT11 温湿度传感器 | ✓ | - |
-| ESP8266 WiFi 模块 | - | ✓ |
-| OLED SSD1306 (I2C) | - | ✓ |
-| LED ×2 | ✓ | ✓ |
+| 组件 | 传感器节点 | 网关节点 | 备注 |
+|------|:---------:|:--------:|------|
+| STM32F103C8T6 最小系统板 | ✓ | ✓ | Blue Pill |
+| TJA1050 CAN 收发器模块 | ✓ | ✓ | 或 SN65HVD230 |
+| DHT11 温湿度传感器 | ✓ | - | PB5, 4.7kΩ 上拉 |
+| 土壤湿度传感器 (电阻式) | ✓ | - | PA0 ADC, LM393 模块 |
+| BH1750FVI 光照传感器 | ✓ | - | PB6/PB7 I2C, ADDR=GND |
+| ESP8266 WiFi 模块 | - | ✓ | ESP-01S, ≥300mA |
+| OLED SSD1306 0.96" | - | ✓ | PB6/PB7, 地址 0x78 |
+| LED ×2 | ✓ | ✓ | PB3/PB4, 串 220Ω |
+
+> 完整接线图见 [docs/hardware-wiring.md](docs/hardware-wiring.md) 或 [docs/diagrams/index.html](docs/diagrams/index.html)
 
 ### 编译与烧录
 
 1. 安装 Keil MDK-ARM v5 + STM32F1xx DFP 包
 2. 打开 `firmware_sensor/project.uvprojx` → 编译 → 烧录到传感器节点
 3. 打开 `firmware_gateway/project.uvprojx` → 编译 → 烧录到网关节点
-
-### CAN 总线连接
-
-```
-传感器节点 TJA1050          网关节点 TJA1050
-     CAN_H ◄══════════════════► CAN_H
-     CAN_L ◄══════════════════► CAN_L
-             两端各接 120Ω 终端电阻
-```
 
 ### 手机连接
 
@@ -109,21 +118,40 @@
 
 ### CAN 协议 (STM32 ↔ STM32)
 
-29-bit 扩展帧, 500kbps, ID 位域: `[优先级:3][消息类型:10][源节点:8][目标:8]`
+29-bit 扩展帧, 500kbps, 8字节数据载荷:
 
-### TCP 协议 (网关 ↔ 手机)
+```
+[0-1]=温度×10  [2-3]=湿度×10  [4]=土壤湿度%  [5-6]=光照lux  [7]=保留
+```
 
-**手机发送命令：**
+ID 位域: `[优先级:3][消息类型:10][源节点:8][目标节点:8]`
+
+### TCP JSON 协议 (网关 ↔ 手机)
+
+**手机查询:**
 ```json
 {"cmd": "query"}
 ```
 
-**网关上传数据：**
+**网关上发:**
 ```json
-{"type":"data","temp":25.5,"humi":60.0,"status":"online","ts":500}
+{"type":"data","temp":25.5,"humi":60.0,"soil":45,"light":3200,"status":"online","ts":500}
 ```
 
-详见 [docs/can-protocol.md](docs/can-protocol.md)
+## FreeRTOS 任务架构
+
+| 传感器节点 | 优先级 | 周期 | 职责 |
+|-----------|:------:|------|------|
+| Task_Sensor_Acq | 4 | 1s | 采集 DHT11 + 土壤 + 光照 |
+| Task_CAN_Report | 3 | 事件 | CAN 数据上报 + 心跳 |
+| Task_CAN_CmdHandler | 2 | 事件 | 处理网关查询指令 |
+
+| 网关节点 | 优先级 | 周期 | 职责 |
+|---------|:------:|------|------|
+| Task_CAN_Recv | 4 | 事件 | CAN 帧接收 + 解析 |
+| Task_ESP_Upload | 3 | 事件 | JSON 序列化 + TCP 上发 |
+| Task_OLED_Display | 2 | 100ms | 4行温/湿/土/光显示 |
+| Task_CAN_Poll | 2 | 3s | 离线主动查询 |
 
 ## 开源协议
 
