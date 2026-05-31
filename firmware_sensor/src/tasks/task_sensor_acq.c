@@ -13,6 +13,7 @@
 #include "soil_moisture.h"
 #include "bh1750.h"
 #include "led.h"
+#include <string.h>
 
 extern QueueHandle_t xQueueSensorData;
 

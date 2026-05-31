@@ -11,6 +11,7 @@
 #include "soil_moisture.h"
 #include "app_config.h"
 #include "led.h"
+#include <string.h>
 
 /* 队列定义 */
 QueueHandle_t xQueueSensorData = NULL;

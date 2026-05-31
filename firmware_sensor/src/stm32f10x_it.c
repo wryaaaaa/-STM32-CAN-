@@ -11,7 +11,6 @@
  * SVC_Handler    → vPortSVCHandler
  * PendSV_Handler → xPortPendSVHandler
  * SysTick_Handler→ xPortSysTickHandler
- * 这三个在 FreeRTOSConfig.h 中定义，本文件不再重复实现
  */
 
 void NMI_Handler(void) {}
@@ -20,3 +19,14 @@ void MemManage_Handler(void) { while (1); }
 void BusFault_Handler(void) { while (1); }
 void UsageFault_Handler(void) { while (1); }
 void DebugMon_Handler(void) {}
+
+/**
+ * @brief  栈溢出钩子 (configCHECK_FOR_STACK_OVERFLOW=2 时调用)
+ */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    /* 栈溢出 — 死循环等待调试器介入 */
+    (void)xTask;
+    (void)pcTaskName;
+    while (1);
+}

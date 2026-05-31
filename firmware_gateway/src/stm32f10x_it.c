@@ -22,6 +22,16 @@ void BusFault_Handler(void) { while (1); }
 void UsageFault_Handler(void) { while (1); }
 void DebugMon_Handler(void) {}
 
+/**
+ * @brief  栈溢出钩子 (configCHECK_FOR_STACK_OVERFLOW=2 时调用)
+ */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    (void)xTask;
+    (void)pcTaskName;
+    while (1);
+}
+
 /* ============================================================
  *               USART1 中断 (ESP8266 / 手机命令)
  * ============================================================ */
