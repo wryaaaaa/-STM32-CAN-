@@ -8,6 +8,8 @@
 #include "stm32f10x.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
+#include "can_driver.h"
 #include "app_config.h"
 #include "task_can_report.h"
 #include "task_sensor_acq.h"

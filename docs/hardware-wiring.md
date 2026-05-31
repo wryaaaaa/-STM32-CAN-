@@ -4,13 +4,14 @@
 
 | 引脚 | 默认复用功能 | 本项目用途 | 所属设备 |
 |------|:----------:|-----------|:--------:|
+| PA0 | ADC1_CH0 | 土壤湿度传感器 | 传感器 |
 | PA9 | USART1_TX | ESP8266 RXD | 网关 |
 | PA10 | USART1_RX | ESP8266 TXD | 网关 |
 | PB3 | GPIO | LED1 | 两者 |
 | PB4 | GPIO | LED2 | 两者 |
 | PB5 | GPIO | DHT11 DATA | 传感器 |
-| PB6 | I2C1_SCL | OLED SCL | 网关 |
-| PB7 | I2C1_SDA | OLED SDA | 网关 |
+| PB6 | I2C1_SCL | BH1750 SCL (传感器) / OLED SCL (网关) | 两者 |
+| PB7 | I2C1_SDA | BH1750 SDA (传感器) / OLED SDA (网关) | 两者 |
 | PB8 | **CAN1_RX** | TJA1050 RXD | 两者 |
 | PB9 | **CAN1_TX** | TJA1050 TXD | 两者 |
 | PB12 | GPIO | KEY0 (预留) | 两者 |
@@ -25,15 +26,26 @@
 
 ```
                     STM32F103C8T6
-                  ┌─────────────────┐
-                  │                 │
-    LED1 ◄── PB3  │                 │  PB8 ───► TJA1050 RXD ──► CAN_H / CAN_L
-    LED2 ◄── PB4  │                 │  PB9 ◄─── TJA1050 TXD
-                  │                 │
-   DHT11 ◄── PB5  │                 │
-    VCC ─── 3.3V  │                 │
-    GND ─── GND   └─────────────────┘
-  (DATA 接 4.7kΩ 上拉到 3.3V)
+                  ┌─────────────────────┐
+                  │                     │
+    LED1 ◄── PB3  │                     │  PB8 ───► TJA1050 RXD ──► CAN_H/CAN_L
+    LED2 ◄── PB4  │                     │  PB9 ◄─── TJA1050 TXD
+                  │                     │
+   DHT11 ◄── PB5  │                     │  PA0 ◄── 土壤湿度传感器 (模拟输出)
+                  │                     │  PB6 ───► BH1750 SCL
+    土壤湿度       │                     │  PB7 ◄──► BH1750 SDA
+  ┌──────────┐    └─────────────────────┘
+  │ VCC─3.3V │       BH1750
+  │ GND─GND  │    ┌───────────┐
+  │ AOUT─PA0 │    │ VCC─3.3V  │
+  └──────────┘    │ GND─GND   │
+                  │ SCL─PB6   │
+   DHT11          │ SDA─PB7   │
+  ┌──────────┐    │ ADDR─GND  │  (地址=0x23)
+  │ VCC─3.3V │    └───────────┘
+  │ DATA─PB5 │
+  │ GND─GND  │
+  └──────────┘
 
             TJA1050
          ┌────────────┐
@@ -52,10 +64,13 @@
 | PB3 | LED1 阳极 | — | 串 220Ω → GND |
 | PB4 | LED2 阳极 | — | 串 220Ω → GND |
 | PB5 | DHT11 DATA | 黄 | 外接 4.7kΩ 上拉至 3.3V |
-| PB8 | TJA1050 RXD (pin1) | 绿 | CAN 接收 |
-| PB9 | TJA1050 TXD (pin4) | 蓝 | CAN 发送 |
-| 3.3V / 5V | DHT11 VCC, TJA1050 VCC | 红 | |
-| GND | 所有模块 GND | 黑 | **两个节点 GND 需共地** |
+| PA0 | 土壤湿度传感器 AOUT | 橙 | 模拟输出 0~3.3V |
+| PB6 | BH1750 SCL | 绿 | I2C 时钟 |
+| PB7 | BH1750 SDA | 蓝 | I2C 数据 |
+| PB8 | TJA1050 RXD (pin1) | 紫 | CAN 接收 |
+| PB9 | TJA1050 TXD (pin4) | 灰 | CAN 发送 |
+| 3.3V | 所有 VCC | 红 | |
+| GND | 所有 GND | 黑 | **两节点 GND 需共地** |
 
 ---
 
@@ -122,16 +137,18 @@
 | 1 | STM32 最小系统板 | 1 | 1 | STM32F103C8T6 (Blue Pill) |
 | 2 | CAN 收发器模块 | 1 | 1 | TJA1050 或 SN65HVD230 |
 | 3 | DHT11 温湿度模块 | 1 | 0 | 3.3V-5V |
-| 4 | ESP8266 WiFi 模块 | 0 | 1 | ESP-01S |
-| 5 | OLED 显示屏 | 0 | 1 | 0.96" SSD1306 I2C (4pin) |
-| 6 | LED (颜色任意) | 2 | 2 | 3mm 或 5mm |
-| 7 | 220Ω 电阻 | 2 | 2 | LED 限流 |
-| 8 | 120Ω 电阻 | 1 | 1 | CAN 终端 (1/4W) |
-| 9 | 4.7kΩ 电阻 | 1 | 0 | DHT11 DATA 上拉 |
-| 10 | 10kΩ 电阻 | 0 | 2 | ESP8266 RST/CH_PD |
-| 11 | 双绞线 (≤30m) | 1 | 1 | CAN 总线 |
-| 12 | USB-TTL 模块 | 1 | 1 | 烧录用 |
-| 13 | 杜邦线 + 面包板 | 若干 | 若干 | |
+| 4 | 土壤湿度传感器 (电阻式) | 1 | 0 | 模拟输出, 配 LM393 比较器模块 |
+| 5 | BH1750FVI 光照模块 | 1 | 0 | I2C, ADDR 接地 (0x23) |
+| 6 | ESP8266 WiFi 模块 | 0 | 1 | ESP-01S |
+| 7 | OLED 显示屏 | 0 | 1 | 0.96" SSD1306 I2C (4pin) |
+| 8 | LED (颜色任意) | 2 | 2 | 3mm 或 5mm |
+| 9 | 220Ω 电阻 | 2 | 2 | LED 限流 |
+| 10 | 120Ω 电阻 | 1 | 1 | CAN 终端 (1/4W) |
+| 11 | 4.7kΩ 电阻 | 1 | 0 | DHT11 DATA 上拉 |
+| 12 | 10kΩ 电阻 | 0 | 2 | ESP8266 RST/CH_PD |
+| 13 | 双绞线 (≤30m) | 1 | 1 | CAN 总线 |
+| 14 | USB-TTL 模块 | 1 | 1 | 烧录用 |
+| 15 | 杜邦线 + 面包板 | 若干 | 若干 | |
 
 ---
 

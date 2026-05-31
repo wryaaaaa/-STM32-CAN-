@@ -10,22 +10,27 @@
 #include <string.h>
 
 /**
- * @brief  构建传感器数据 JSON 字符串
+ * @brief  构建传感器数据 JSON 字符串 (含全部4项)
  * @param  buf      输出缓冲区
  * @param  buf_size 缓冲区大小
  * @param  temp     温度 ×10
  * @param  humi     湿度 ×10
+ * @param  soil     土壤湿度 0~100%
+ * @param  light    光照强度 (lux)
  * @param  status   设备状态字符串
  * @param  ts       时间戳 (毫秒)
  * @return 写入的字节数
  */
 static inline int json_build_data(char *buf, int buf_size,
                                    int16_t temp, int16_t humi,
+                                   uint8_t soil, uint16_t light,
                                    const char *status, uint32_t ts)
 {
     return snprintf(buf, buf_size,
-        "{\"type\":\"data\",\"temp\":%.1f,\"humi\":%.1f,\"status\":\"%s\",\"ts\":%lu}",
-        temp / 10.0f, humi / 10.0f, status, (unsigned long)ts);
+        "{\"type\":\"data\",\"temp\":%.1f,\"humi\":%.1f,\"soil\":%u,\"light\":%u,\"status\":\"%s\",\"ts\":%lu}",
+        temp / 10.0f, humi / 10.0f,
+        (unsigned)soil, (unsigned)light,
+        status, (unsigned long)ts);
 }
 
 /**
@@ -63,13 +68,12 @@ static inline int json_build_ack(char *buf, int buf_size, int code)
  */
 static inline int json_parse_cmd(const char *json_str, char *cmd_buf, int cmd_buf_size)
 {
-    /* 简单字符串匹配解析: {"cmd":"query"} → "query" */
     const char *cmd_start = strstr(json_str, "\"cmd\"");
     if (cmd_start == NULL) return 1;
 
     const char *val_start = strstr(cmd_start + 5, "\"");
     if (val_start == NULL) return 1;
-    val_start++; /* 跳过引号 */
+    val_start++;
 
     const char *val_end = strstr(val_start, "\"");
     if (val_end == NULL) return 1;

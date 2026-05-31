@@ -1,6 +1,8 @@
 /**
  * @file    can_protocol.h
  * @brief   CAN协议编解码工具
+ * @note    CAN帧 8字节布局:
+ *         [0-1]=温度×10  [2-3]=湿度×10  [4]=土壤湿度%  [5-6]=光照lux  [7]=保留
  */
 
 #ifndef __CAN_PROTOCOL_H
@@ -21,9 +23,9 @@ static inline void can_build_data_report(CAN_Frame_t *frame, SensorData_t *data)
     frame->data[2] = (uint8_t)(data->humidity >> 8);
     frame->data[3] = (uint8_t)(data->humidity);
     frame->data[4] = data->soil_moisture;
-    frame->data[5] = data->light;
-    frame->data[6] = 0;
-    frame->data[7] = 0;
+    frame->data[5] = (uint8_t)(data->light >> 8);      /* 光照高字节 */
+    frame->data[6] = (uint8_t)(data->light);            /* 光照低字节 */
+    frame->data[7] = 0;                                 /* 保留 */
 }
 
 /* 构建查询指令帧 */
@@ -39,7 +41,6 @@ static inline void can_build_query_cmd(CAN_Frame_t *frame, uint8_t query_type)
 static inline void can_build_query_ack(CAN_Frame_t *frame, SensorData_t *data)
 {
     can_build_data_report(frame, data);
-    /* 改为查询应答类型，保持高优先级 */
     frame->ext_id = CAN_BUILD_ID(CAN_PRI_COMMAND, CAN_TYPE_QUERY_ACK,
                                   CAN_ADDR_SENSOR, CAN_ADDR_GATEWAY);
 }
@@ -67,10 +68,10 @@ static inline void can_build_alert(CAN_Frame_t *frame, uint8_t alert_code)
 /* 解析传感器数据帧 */
 static inline void can_parse_sensor_data(CAN_Frame_t *frame, SensorData_t *data)
 {
-    data->temperature  = (int16_t)((frame->data[0] << 8) | frame->data[1]);
-    data->humidity     = (int16_t)((frame->data[2] << 8) | frame->data[3]);
+    data->temperature   = (int16_t)((frame->data[0] << 8) | frame->data[1]);
+    data->humidity      = (int16_t)((frame->data[2] << 8) | frame->data[3]);
     data->soil_moisture = frame->data[4];
-    data->light         = frame->data[5];
+    data->light         = (uint16_t)((frame->data[5] << 8) | frame->data[6]);
 }
 
 /* 提取消息类型字段 */

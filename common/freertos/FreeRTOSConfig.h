@@ -61,9 +61,7 @@
    2 = 方法2 - 检测任务和中断栈溢出 */
 #define configCHECK_FOR_STACK_OVERFLOW	            0
 
-/* 启用统计格式化函数（必须启用才能使用vTaskList等函数） */
-#define configUSE_STATS_FORMATTING_FUNCTIONS	  	1
-/* 运行时统计配置: 关闭以减小代码体积，启用需提供 vConfigureTimerForRunTimeStats 和 TaskRunTimeCounter */
+/* 运行时统计配置: 关闭以减小代码体积 */
 #define configGENERATE_RUN_TIME_STATS             	0
 #define configUSE_STATS_FORMATTING_FUNCTIONS      	0
 

@@ -70,8 +70,8 @@ typedef struct {
 typedef struct {
     int16_t  temperature;   /* 温度 ×10 (如 255 = 25.5°C) */
     int16_t  humidity;      /* 湿度 ×10 (如 600 = 60.0%) */
-    uint8_t  soil_moisture; /* 土壤湿度 % (预留) */
-    uint8_t  light;         /* 光照 (预留) */
+    uint8_t  soil_moisture; /* 土壤湿度 0~100% */
+    uint16_t light;         /* 光照强度 (lux) */
 } SensorData_t;
 
 /* ============================================================

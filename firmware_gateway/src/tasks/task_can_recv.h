@@ -24,8 +24,10 @@ extern SemaphoreHandle_t xGatewayMutex;
 typedef struct {
     float    temperature;
     float    humidity;
+    uint8_t  soil_moisture;   /* 土壤湿度 0~100% */
+    uint16_t light;           /* 光照强度 lux */
     uint8_t  sensor_online;   /* 1=在线, 0=离线 */
-    uint32_t last_update_tick;/* 最后收到数据的时间 */
+    uint32_t last_update_tick;
 } GatewayData_t;
 
 extern GatewayData_t g_GatewayData;

@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\common\cmsis;..\common\std_periph_lib;..\common\freertos;..\common\freertos\inc;..\common\freertos\port;..\common\freertos\src;..\common\drivers\can;..\common\drivers\usart;..\common\drivers\dht11;..\common\drivers\led;..\common\drivers\key;..\common\drivers\delay;..\common\utils\ring_buffer;..\common\utils\protocol;.\inc;.\src\tasks</IncludePath>
+              <IncludePath>..\common\cmsis;..\common\std_periph_lib;..\common\freertos;..\common\freertos\inc;..\common\freertos\port;..\common\freertos\src;..\common\drivers\can;..\common\drivers\usart;..\common\drivers\dht11;..\common\drivers\led;..\common\drivers\key;..\common\drivers\delay;..\common\drivers\soil_moisture;..\common\drivers\bh1750;..\common\utils\ring_buffer;..\common\utils\protocol;.\inc;.\src\tasks</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -476,6 +476,16 @@
               <FilePath>..\common\std_periph_lib\stm32f10x_exti.c</FilePath>
             </File>
             <File>
+              <FileName>stm32f10x_adc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\common\std_periph_lib\stm32f10x_adc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f10x_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\common\std_periph_lib\stm32f10x_i2c.c</FilePath>
+            </File>
+            <File>
               <FileName>misc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\common\std_periph_lib\misc.c</FilePath>
@@ -511,9 +521,14 @@
               <FilePath>..\common\utils\ring_buffer\ring_buffer.c</FilePath>
             </File>
             <File>
-              <FileName>freertos_hooks.c</FileName>
+              <FileName>soil_moisture.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\common\utils\freertos_hooks.c</FilePath>
+              <FilePath>..\common\drivers\soil_moisture\soil_moisture.c</FilePath>
+            </File>
+            <File>
+              <FileName>bh1750.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\common\drivers\bh1750\bh1750.c</FilePath>
             </File>
           </Files>
         </Group>
