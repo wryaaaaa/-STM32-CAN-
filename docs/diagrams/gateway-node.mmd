@@ -1,0 +1,23 @@
+graph TB
+    MCU["STM32F103C8T6 - Gateway Node"]
+
+    MCU --> PA9["PA9 | USART1_TX | ESP8266 RXD (115200)"]
+    MCU --> PA10["PA10 | USART1_RX | ESP8266 TXD"]
+    MCU --> PB3["PB3 | GPIO | LED1 (220ohm-GND)"]
+    MCU --> PB4["PB4 | GPIO | LED2 (220ohm-GND)"]
+    MCU --> PB6["PB6 | I2C1_SCL | OLED SCL (bit-bang)"]
+    MCU --> PB7["PB7 | I2C1_SDA | OLED SDA (addr 0x78)"]
+    MCU --> PB8["PB8 | CAN1_RX | TJA1050 Pin1 TXD"]
+    MCU --> PB9["PB9 | CAN1_TX | TJA1050 Pin4 RXD"]
+
+    PA9 --> ESP["ESP8266-01S<br/>WiFi AP: SmartFarm<br/>TCP: 192.168.4.1:8080"]
+    PA10 --> ESP
+    PB6 --> OLED["OLED SSD1306 0.96in<br/>4-Line: T/H/Soil/Lux"]
+    PB7 --> OLED
+    PB8 -.-> CAN["CAN Bus 500kbps<br/>From Sensor Node"]
+    PB9 -.-> CAN
+
+    style MCU fill:#1a1a2e,color:#fff,stroke:#f66
+    style ESP fill:#0984e3,color:#fff
+    style OLED fill:#6c5ce7,color:#fff
+    style CAN fill:#2d3436,color:#ffeaa7,stroke:#ffeaa7

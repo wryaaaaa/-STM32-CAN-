@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CAN Bus Agricultural Monitoring - Hardware Wiring</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  body { font-family: sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 20px; }
+  h1 { color: #00ff88; text-align: center; }
+  h2 { color: #00cec9; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px; }
+  .mermaid { background: #16213e; padding: 20px; border-radius: 8px; margin: 15px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+  th, td { border: 1px solid #333; padding: 8px 12px; text-align: center; }
+  th { background: #16213e; color: #00ff88; }
+  .note { background: #2d3436; padding: 10px; border-left: 3px solid #ffeaa7; margin: 10px 0; }
+</style>
+</head>
+<body>
+<h1>CAN Bus Agricultural Monitoring System</h1>
+<h2>Hardware Wiring Diagrams</h2>
+
+<h2>1. Sensor Node (STM32F103C8 + DHT11 + Soil + BH1750 + TJA1050)</h2>
+<div class="mermaid">
+graph TB
+    MCU["STM32F103C8T6 - Sensor Node"]
+
+    MCU --> PA0["PA0 | ADC1_CH0 | Soil Moisture Sensor"]
+    MCU --> PB3["PB3 | GPIO | LED1 (220ohm-GND)"]
+    MCU --> PB4["PB4 | GPIO | LED2 (220ohm-GND)"]
+    MCU --> PB5["PB5 | GPIO | DHT11 DATA (4.7k pull-up)"]
+    MCU --> PB6["PB6 | I2C1_SCL | BH1750 SCL"]
+    MCU --> PB7["PB7 | I2C1_SDA | BH1750 SDA (ADDR=GND)"]
+    MCU --> PB8["PB8 | CAN1_RX | TJA1050 Pin1 TXD"]
+    MCU --> PB9["PB9 | CAN1_TX | TJA1050 Pin4 RXD"]
+
+    PB8 -.-> CAN["CAN Bus 500kbps TwistedPair + 120ohm"]
+    PB9 -.-> CAN
+
+    style MCU fill:#1a1a2e,color:#fff,stroke:#0f0
+</div>
+
+<h3>Sensor Node Pin Table</h3>
+<table>
+<tr><th>STM32 Pin</th><th>Function</th><th>Peripheral</th><th>Notes</th></tr>
+<tr><td>PA0</td><td>ADC1_CH0</td><td>Soil Moisture Sensor</td><td>Analog 0-3.3V, LM393 module</td></tr>
+<tr><td>PB3</td><td>GPIO</td><td>LED1</td><td>220ohm to GND, acquisition success blink</td></tr>
+<tr><td>PB4</td><td>GPIO</td><td>LED2</td><td>220ohm to GND, alert indicator</td></tr>
+<tr><td>PB5</td><td>GPIO</td><td>DHT11 DATA</td><td>4.7k pull-up to 3.3V</td></tr>
+<tr><td>PB6</td><td>I2C1_SCL</td><td>BH1750 SCL</td><td>HW I2C1 clock, AF open-drain</td></tr>
+<tr><td>PB7</td><td>I2C1_SDA</td><td>BH1750 SDA</td><td>HW I2C1 data, ADDR=GND(0x23)</td></tr>
+<tr><td>PB8</td><td>CAN1_RX</td><td>TJA1050 Pin1 TXD</td><td>Default CAN remap, input pull-up</td></tr>
+<tr><td>PB9</td><td>CAN1_TX</td><td>TJA1050 Pin4 RXD</td><td>Default CAN remap, AF push-pull</td></tr>
+</table>
+
+<div class="note">
+DHT11 VCC=3.3V, GND=GND, DATA=PB5 (4.7k pull up).<br>
+BH1750 VCC=3.3V, GND=GND, ADDR=GND (addr 0x23).<br>
+Soil Moisture: VCC=3.3V, GND=GND, AOUT=PA0.<br>
+TJA1050: VCC=5V, GND=GND, RS=GND (slope control).<br>
+CAN bus: 120ohm terminator at both ends.
+</div>
+
+<h2>2. Gateway Node (STM32F103C8 + OLED + ESP8266 + TJA1050)</h2>
+<div class="mermaid">
+graph TB
+    MCU["STM32F103C8T6 - Gateway Node"]
+
+    MCU --> PA9["PA9 | USART1_TX | ESP8266 RXD (115200)"]
+    MCU --> PA10["PA10 | USART1_RX | ESP8266 TXD"]
+    MCU --> PB3["PB3 | GPIO | LED1 (220ohm-GND)"]
+    MCU --> PB4["PB4 | GPIO | LED2 (220ohm-GND)"]
+    MCU --> PB6["PB6 | I2C1_SCL | OLED SCL (bit-bang)"]
+    MCU --> PB7["PB7 | I2C1_SDA | OLED SDA (addr 0x78)"]
+    MCU --> PB8["PB8 | CAN1_RX | TJA1050 Pin1 TXD"]
+    MCU --> PB9["PB9 | CAN1_TX | TJA1050 Pin4 RXD"]
+
+    PA9 --> ESP["ESP8266-01S: AP SmartFarm TCP 8080"]
+    PB6 --> OLED["OLED SSD1306 0.96in 128x64"]
+    PB8 -.-> CAN["CAN Bus from Sensor Node"]
+
+    style MCU fill:#1a1a2e,color:#fff,stroke:#f66
+</div>
+
+<h3>Gateway Node Pin Table</h3>
+<table>
+<tr><th>STM32 Pin</th><th>Function</th><th>Peripheral</th><th>Notes</th></tr>
+<tr><td>PA9</td><td>USART1_TX</td><td>ESP8266 RXD</td><td>115200bps, AF push-pull</td></tr>
+<tr><td>PA10</td><td>USART1_RX</td><td>ESP8266 TXD</td><td>Input floating</td></tr>
+<tr><td>PB3</td><td>GPIO</td><td>LED1</td><td>220ohm to GND</td></tr>
+<tr><td>PB4</td><td>GPIO</td><td>LED2</td><td>220ohm to GND</td></tr>
+<tr><td>PB6</td><td>I2C1_SCL</td><td>OLED SCL</td><td>Bit-bang I2C, open-drain</td></tr>
+<tr><td>PB7</td><td>I2C1_SDA</td><td>OLED SDA</td><td>Bit-bang I2C, open-drain</td></tr>
+<tr><td>PB8</td><td>CAN1_RX</td><td>TJA1050 Pin1 TXD</td><td>Default CAN remap</td></tr>
+<tr><td>PB9</td><td>CAN1_TX</td><td>TJA1050 Pin4 RXD</td><td>Default CAN remap</td></tr>
+</table>
+
+<div class="note">
+ESP8266: VCC=3.3V (>300mA), GND=GND, CH_PD=3.3V, RST=10k to 3.3V.<br>
+OLED: VCC=3.3V, GND=GND, SCL=PB6, SDA=PB7 (I2C addr 0x78).<br>
+TJA1050: same as sensor node wiring.
+</div>
+
+<h2>3. System Architecture</h2>
+<div class="mermaid">
+graph LR
+    subgraph SENSOR["Sensor Node"]
+        DHT[DHT11 PB5] --> ACQ[Task_Sensor_Acq Prio4]
+        SOIL[Soil ADC PA0] --> ACQ
+        BH[BH1750 I2C PB6/PB7] --> ACQ
+        ACQ --> Q1[xQueueSensorData]
+        Q1 --> RPT[Task_CAN_Report Prio3]
+    end
+
+    RPT --> CANBUS{CAN Bus 500kbps<br/>PB8/PB9 TJA1050<br/>29-bit Extended Frame}
+
+    CANBUS --> ISR[USB_LP_CAN1_RX0 ISR]
+    ISR --> Q2[xQueueCANRx]
+    Q2 --> RECV[Task_CAN_Recv Prio4]
+
+    subgraph GW["Gateway Node"]
+        RECV --> MUTEX[GatewayData + xGatewayMutex]
+        MUTEX --> OLED[Task_OLED_Display 100ms]
+        MUTEX --> UPLOAD[Task_ESP_Upload JSON]
+        UPLOAD --> WIFI[ESP8266 TCP 8080]
+    end
+
+    WIFI -.-> PHONE[Mobile App: SmartFarm]
+
+    style SENSOR fill:#1a1a2e,color:#e0e0e0,stroke:#0f0
+    style GW fill:#1a1a2e,color:#e0e0e0,stroke:#f66
+    style CANBUS fill:#2d3436,color:#ffeaa7
+</div>
+
+<h2>4. CAN Bus Physical Connection</h2>
+<div class="mermaid">
+graph LR
+    subgraph N1["Sensor Node TJA1050"]
+        CANH1[CANH Pin6]
+        CANL1[CANL Pin7]
+    end
+    subgraph N2["Gateway Node TJA1050"]
+        CANH2[CANH Pin6]
+        CANL2[CANL Pin7]
+    end
+    CANH1 ---|Twisted Pair| CANH2
+    CANL1 ---|Twisted Pair| CANL2
+    CANH1 --- R1[120ohm] --- GND1[GND]
+    CANH2 --- R2[120ohm] --- GND2[GND]
+</div>
+
+<h2>5. Development Board (Blue Pill) Pin Reference</h2>
+<table>
+<tr><th>Pin</th><th>Sensor Node</th><th>Gateway Node</th><th>Hardware Function</th></tr>
+<tr><td>PA0</td><td>Soil Moisture ADC</td><td>-</td><td>ADC12_IN0 / TIM2_CH1</td></tr>
+<tr><td>PA9</td><td>-</td><td>ESP8266 RXD</td><td>USART1_TX</td></tr>
+<tr><td>PA10</td><td>-</td><td>ESP8266 TXD</td><td>USART1_RX</td></tr>
+<tr><td>PB3</td><td>LED1</td><td>LED1</td><td>JTDO / TIM2_CH2</td></tr>
+<tr><td>PB4</td><td>LED2</td><td>LED2</td><td>JNTRST / TIM3_CH1</td></tr>
+<tr><td>PB5</td><td>DHT11 DATA</td><td>-</td><td>I2C1_SMBA / TIM3_CH2</td></tr>
+<tr><td>PB6</td><td>BH1750 SCL</td><td>OLED SCL</td><td>I2C1_SCL / TIM4_CH1</td></tr>
+<tr><td>PB7</td><td>BH1750 SDA</td><td>OLED SDA</td><td>I2C1_SDA / TIM4_CH2</td></tr>
+<tr><td>PB8</td><td>TJA1050 RXD</td><td>TJA1050 RXD</td><td>CAN1_RX / TIM4_CH3</td></tr>
+<tr><td>PB9</td><td>TJA1050 TXD</td><td>TJA1050 TXD</td><td>CAN1_TX / TIM4_CH4</td></tr>
+</table>
+
+<script>mermaid.initialize({startOnLoad:true,theme:'dark'});</script>
+</body>
+</html>

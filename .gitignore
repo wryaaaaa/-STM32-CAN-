@@ -29,6 +29,11 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+# Node (Mermaid rendering tools)
+node_modules/
+package.json
+package-lock.json
+
 # Misc
 *.tmp
 *.bak

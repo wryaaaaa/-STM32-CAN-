@@ -1,0 +1,37 @@
+graph LR
+    subgraph SENSOR["Sensor Node - STM32F103C8"]
+        DHT[DHT11 on PB5] --> ACQ[Task_Sensor_Acq<br/>Prio:4]
+        SOIL[Soil Moisture<br/>PA0 ADC1_CH0] --> ACQ
+        BH[BH1750 Light<br/>PB6/PB7 I2C1] --> ACQ
+        ACQ --> Q1[xQueueSensorData]
+        Q1 --> RPT[Task_CAN_Report<br/>Prio:3]
+        RPT --> CAN_T[CAN TX via TJA1050]
+    end
+
+    CAN_T --> CANBUS{CAN Bus 500kbps<br/>29-bit Extended Frame<br/>PB8=CAN_RX PB9=CAN_TX<br/>120ohm x2 Terminator}
+
+    CANBUS --> CAN_R[CAN RX via TJA1050]
+    CAN_R --> ISR[USB_LP_CAN1_RX0 ISR]
+    ISR --> Q2[xQueueCANRx]
+    Q2 --> RECV[Task_CAN_Recv<br/>Prio:4]
+    RECV --> MUTEX[GatewayData + Mutex]
+    MUTEX --> OLED_T[Task_OLED_Display<br/>Prio:2 100ms]
+    MUTEX --> UPLOAD[Task_ESP_Upload<br/>Prio:3 TCP JSON]
+    UPLOAD --> WIFI[ESP8266 PA9/PA10]
+    WIFI --> PHONE[Phone: SmartFarm/12345678]
+
+    subgraph GW["Gateway Node - STM32F103C8"]
+        ISR
+        Q2
+        RECV
+        MUTEX
+        OLED_T
+        UPLOAD
+        WIFI
+    end
+
+    PHONE -.->|JSON: temp/humi/soil/light| APP[Cloud / Mobile App]
+
+    style SENSOR fill:#1a1a2e,color:#e0e0e0,stroke:#0f0
+    style GW fill:#1a1a2e,color:#e0e0e0,stroke:#f66
+    style CANBUS fill:#2d3436,color:#ffeaa7,stroke:#ffeaa7
